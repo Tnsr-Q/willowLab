@@ -11,7 +11,7 @@
 - The CLI loader hydrates a Willow bundle, runs the Step-1 Trinity invariants (`WillowTrinityStep1.compute_all`) with configurable JT anchor and window, conditionally executes Spectral duality, η-lock, and geometry batteries when data is present, and records JSON summaries to an artifacts directory.【F:Willow lab setup.txt†L1600-L1718】
 
 ## Zip-to-Willow conveyor
-- Stage A triage inspects zip members by magic bytes, records a manifest, and opportunistically lifts JT grids or eigenpairs, while Stage B extractors reconcile partial payloads into complete Willow bundles before normalization and persistence to hashed `.npz`/`.h5` artifacts with provenance manifests.【F:Willow lab Injest.txt†L1-L200】【F:Willow lab Injest.txt†L520-L678】
+- Stage A triage inspects zip members by magic bytes, records a manifest, and opportunistically lifts JT grids or eigenpairs, while Stage B extractors reconcile partial payloads into complete Willow bundles before normalization and persistence to hashed `.npz`/`.h5` artifacts with provenance manifests.【F:Willow lab Ingest.txt†L1-L200】【F:Willow lab Ingest.txt†L520-L678】
 
 ## Incremental caching and HDF5 probing
 - `DirCache` tracks size/mtime and SHA256 digests per ingestion root to skip unchanged files, and the one-level HDF5 walker samples root and child groups within memory budgets so foreign layouts still surface key tensors.【F:Willow lab Helpers.txt†L1-L520】
