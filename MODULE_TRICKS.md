@@ -1,7 +1,8 @@
 # Willow Lab Module Integration & Operational Tricks
 
 ## Project skeleton and environment
-- Standardize on a reproducible Conda stack (Python 3.11 plus NumPy, SciPy, pandas, h5py, numba, PyYAML, Matplotlib, NetworkX, pytest) and organize the repository so ingestion, caching, Trinity analysis, tests, geometry, T¹⁴ logic, and CLI live in predictable modules under `willowlab/` with YAML configs for orchestration.【F:Willow lab setup.txt†L205-L324】
+- Standardize on a reproducible Conda stack (Python 3.11 plus NumPy, SciPy, pandas, h5py, numba, PyYAML, Matplotlib, NetworkX, pytest).【F:Willow lab setup.txt†L205-L324】
+- Organize the repository so ingestion, caching, Trinity analysis, tests, geometry, T¹⁴ logic, and CLI live in predictable modules under `willowlab/` with YAML configs for orchestration.
 
 ## Schema-driven ingestion core
 - The immutable `WillowDataset` dataclass unifies JT scan points, Floquet eigen-data, resolvent traces, entropy, η oscillations, Chern parity, spectral crossings, and optional overlap matrices, validating shapes before memoized computations populate caches.【F:Willow lab setup.txt†L324-L512】
