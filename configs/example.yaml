@@ -1,0 +1,8 @@
+dataset: "/path/to/willow_data.npz"
+jt_star: 1.0
+window: 0.05
+tests:
+  - t_spec_ent
+  - t_eta_lock
+  - t_geometry
+artifacts_dir: "./artifacts"
