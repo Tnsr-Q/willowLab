@@ -1,9 +1,17 @@
-import yaml, json, pathlib
-from .io import load_willow
-from .trinity import WillowTrinityStep1
-from .tests.t_spec_ent import test_duality
-from .tests.t_eta_lock import eta_lock_windows, decoder_priors_from_crossings
+import json
+import pathlib
+
+import numpy as np
+import yaml
+
+from .disorder import disorder_scan, optimal_disorder
 from .geometry import non_abelian_wilson_loop, residue_atlas
+from .io import load_willow
+from .resolvent import resolvent_scan, spectral_temperature, validate_theorem_b1
+from .spectral_flow import berry_phase_loop, chern_number, validate_theorem_b4
+from .tests.t_eta_lock import decoder_priors_from_crossings, eta_lock_windows
+from .tests.t_spec_ent import test_duality
+from .trinity import WillowTrinityStep1
 
 def run(config_path):
     cfg = yaml.safe_load(open(config_path))
@@ -32,3 +40,174 @@ def run(config_path):
     (art/"summary.json").write_text(json.dumps(out, indent=2, default=lambda x: x if
                                                isinstance(x, (int, float, str)) else str(x)))
     print(f"Wrote {art/'summary.json'}")
+
+
+def run_resolvent(config_path):
+    """
+    Run resolvent witness analysis on Willow dataset.
+
+    Config keys:
+        dataset: path to .npz file
+        jt_star: peak location (default 1.0)
+        window: analysis window (default 0.05)
+        artifacts_dir: output directory
+    """
+    cfg = yaml.safe_load(open(config_path))
+    ds = load_willow(cfg["dataset"])
+
+    if ds.floquet_eigenvalues is None:
+        print("Error: No eigenvalues in dataset")
+        return
+
+    # Run resolvent scan
+    result = resolvent_scan(
+        ds.floquet_eigenvalues,
+        ds.JT_scan_points,
+        align_phase=True
+    )
+
+    out = {
+        'peak_jt': result['peak_jt'],
+        'peak_r_op': result['peak_r_op'],
+        'expected_jt': cfg.get('jt_star', 1.0),
+        'peak_match': abs(result['peak_jt'] - cfg.get('jt_star', 1.0)) < cfg.get('window', 0.05)
+    }
+
+    # Theorem B.1 test if entropy data present
+    if ds.entropy is not None and ds.effective_energy is not None:
+        duality = validate_theorem_b1(
+            result['trace_abs'],
+            ds.JT_scan_points,
+            ds.entropy,
+            ds.effective_energy,
+            window=cfg.get('window', 0.05)
+        )
+        out['theorem_b1'] = duality
+
+    # Write output
+    art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
+    art.mkdir(parents=True, exist_ok=True)
+
+    (art/"resolvent_results.json").write_text(json.dumps(out, indent=2))
+    print(f"Wrote {art/'resolvent_results.json'}")
+    print(f"Peak at JT={out['peak_jt']:.3f}, R_op={out['peak_r_op']:.3f}")
+
+    if 'theorem_b1' in out:
+        print(f"Theorem B.1: slope={out['theorem_b1']['slope']:.3f}, pass={out['theorem_b1']['passed']}")
+
+
+def run_spectral_flow(config_path):
+    """
+    Run spectral flow topology analysis.
+
+    Config keys:
+        dataset: path to .npz file
+        loop_mode: 'single' or 'nested' (for c₁₄)
+        artifacts_dir: output directory
+    """
+    cfg = yaml.safe_load(open(config_path))
+    ds = load_willow(cfg["dataset"])
+
+    if ds.floquet_eigenvectors is None:
+        print("Error: No eigenvectors in dataset")
+        return
+
+    # Extract closed loop from eigenvectors
+    evecs_loop = list(ds.floquet_eigenvectors)
+    evecs_loop.append(evecs_loop[0])  # Close loop
+
+    # Compute Berry phases
+    berry_phases = berry_phase_loop(evecs_loop)
+    C = chern_number(berry_phases)
+
+    out = {
+        'berry_phases': berry_phases.tolist(),
+        'chern_number': int(C),
+        'chern_mod2': int(C % 2)
+    }
+
+    # Theorem B.4 test if η data present
+    if ds.eta_oscillations is not None and ds.chern_mod2 is not None:
+        eta_test = validate_theorem_b4(berry_phases, ds.eta_oscillations, ds.chern_mod2)
+        out['theorem_b4'] = eta_test
+
+    # Write output
+    art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
+    art.mkdir(parents=True, exist_ok=True)
+
+    (art/"spectral_flow_results.json").write_text(json.dumps(out, indent=2))
+    print(f"Wrote {art/'spectral_flow_results.json'}")
+    print(f"Chern number: {C}")
+
+    if 'theorem_b4' in out:
+        print(f"Theorem B.4: agreement={out['theorem_b4']['agreement_rate']:.1%}, pass={out['theorem_b4']['passed']}")
+
+
+def run_disorder(config_path):
+    """
+    Run disorder sharpening analysis.
+
+    Config keys:
+        dataset: path to .npz file
+        delta_values: array of disorder strengths (default [0.0, 0.05, 0.1, 0.15, 0.2])
+        n_realizations: disorder realizations per delta (default 5)
+        artifacts_dir: output directory
+    """
+    cfg = yaml.safe_load(open(config_path))
+    ds = load_willow(cfg["dataset"])
+
+    if ds.floquet_eigenvalues is None:
+        print("Error: No eigenvalues in dataset")
+        return
+
+    delta_values = np.array(cfg.get('delta_values', [0.0, 0.05, 0.1, 0.15, 0.2]))
+    n_realizations = cfg.get('n_realizations', 5)
+
+    # Run disorder scan
+    results = disorder_scan(
+        ds.floquet_eigenvalues,
+        ds.JT_scan_points,
+        delta_values,
+        n_realizations=n_realizations
+    )
+
+    optimal = optimal_disorder(results)
+
+    out = {
+        'disorder_scan': results,
+        'optimal_delta': optimal['optimal_delta'],
+        'enhancement_factor': optimal['enhancement_factor']
+    }
+
+    # Write output
+    art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
+    art.mkdir(parents=True, exist_ok=True)
+
+    (art/"disorder_results.json").write_text(
+        json.dumps(out, indent=2, default=lambda x: float(x) if isinstance(x, np.floating) else x)
+    )
+    print(f"Wrote {art/'disorder_results.json'}")
+    print(f"Optimal δ={optimal['optimal_delta']:.2f}, enhancement={optimal['enhancement_factor']:.2f}x")
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 3:
+        print("Usage: python -m willowlab.cli <command> <config.yaml>")
+        sys.exit(1)
+
+    command = sys.argv[1]
+    config_path = sys.argv[2]
+
+    if command == "trinity":
+        run(config_path)
+    elif command == "resolvent":
+        run_resolvent(config_path)
+    elif command == "spectral-flow":
+        run_spectral_flow(config_path)
+    elif command == "disorder":
+        run_disorder(config_path)
+    else:
+        print(f"Unknown command: {command}")
+        sys.exit(1)
