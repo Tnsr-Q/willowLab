@@ -113,7 +113,7 @@ def run_spectral_flow(config_path):
         return
 
     # Extract closed loop from eigenvectors
-    evecs_loop = [ds.floquet_eigenvectors[t] for t in range(len(ds.JT_scan_points))]
+    evecs_loop = list(ds.floquet_eigenvectors)
     evecs_loop.append(evecs_loop[0])  # Close loop
 
     # Compute Berry phases
