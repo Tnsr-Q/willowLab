@@ -1,5 +1,6 @@
-import numpy as np, h5py, json, pathlib
-from schema import WillowDataset
+import numpy as np, h5py, pathlib
+
+from .schema import WillowDataset
 
 def load_willow(path, *, kind=None, meta=None) -> WillowDataset:
     """
