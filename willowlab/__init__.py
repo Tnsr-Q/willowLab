@@ -13,4 +13,7 @@ __all__ = [
     "t14",
     "cartography",
     "cli",
+    "resolvent",
+    "spectral_flow",
+    "disorder",
 ]
