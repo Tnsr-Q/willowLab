@@ -1,6 +1,3 @@
-# Willow Lab Core Skeleton
-
-This repository bootstraps the Willow Lab toolkit layout extracted from the provided design PDFs. At this stage the focus is on establishing the directories and placeholder modules so that follow-up work can drop in the full implementations.
 
 ## Project structure
 
@@ -37,4 +34,4 @@ This repository bootstraps the Willow Lab toolkit layout extracted from the prov
         └── t_spec_ent.py
 ```
 
-The Python modules currently contain lightweight docstrings or TODO markers and will be populated with the full logic in subsequent steps.
+
