@@ -15,7 +15,8 @@ def test_duality(ds) -> Dict[str,float]:
     T_ent = entanglement_temperature(ds.entropy, ds.effective_energy)
     mask = (ds.JT_scan_points > 0.98) & (ds.JT_scan_points < 1.02)
     a = np.log(T_spec[mask]); b = np.log(T_ent[mask])
-    slope, = np.polyfit(a, b, 1)
+    slope = np.polyfit(a, b, 1)[0]
     r2 = np.corrcoef(a, b)[0,1]**2
-    return {"slope": float(slope), "r2": float(r2),
-            "duality_holds": bool(abs(slope-1.0) < 0.1 and r2 > 0.9)}
+    metrics = {"slope": float(slope), "r2": float(r2),
+               "duality_holds": bool(abs(slope-1.0) < 0.1 and r2 > 0.9)}
+    assert metrics["duality_holds"]
