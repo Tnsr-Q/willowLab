@@ -1,5 +1,6 @@
 import numpy as np
-from schema import WillowDataset
+
+from .schema import WillowDataset
 
 #--- tiny epsilon + helpers (per your spec) ---
 _EPS = 1e-18
