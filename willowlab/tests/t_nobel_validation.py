@@ -5,8 +5,12 @@ from __future__ import annotations
 import cmath
 import json
 import math
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Dict, List
+
+import pytest
 
 from willowlab.schema import (
     NobelValidationSuite,
@@ -228,9 +232,11 @@ def _load_default_datasets() -> Dict[str, WillowDataset]:
         sept = load_willow("willow_sept_2025.npz")
         pooled = load_willow("willow_pooled_2025.npz")
         return {"sept_2025": sept, "sept_dec_2025": pooled}
-    except Exception:  # pragma: no cover - fall back to synthetic data
-        synthetic = _synthetic_dataset()
-        return {"sept_2025": synthetic, "sept_dec_2025": synthetic}
+    except (ValueError, KeyError, OSError) as exc:  # pragma: no cover - depends on file integrity
+        raise RuntimeError(
+            "Failed to load default Nobel validation datasets. "
+            "Ensure willow_sept_2025.npz and willow_pooled_2025.npz are valid."
+        ) from exc
 
 
 def execute_nobel_validation(report_path: Path | str = "nobel_validation_report.json") -> Dict[str, object]:
@@ -244,11 +250,47 @@ def execute_nobel_validation(report_path: Path | str = "nobel_validation_report.
     return report
 
 
-def test_nobel_validation(tmp_path):
+def test_nobel_validation(tmp_path, monkeypatch):
     """Exercise the Nobel validation runner on synthetic datasets."""
+
+    synthetic = _synthetic_dataset()
+    module = sys.modules[__name__]
+    monkeypatch.setattr(
+        module,
+        "_load_default_datasets",
+        lambda: {"sept_2025": synthetic, "sept_dec_2025": synthetic},
+    )
 
     report_path = tmp_path / "nobel_validation_report.json"
     report = execute_nobel_validation(report_path)
 
     assert report["theorems_tested"] == 2
     assert report_path.exists()
+
+
+def test_load_default_datasets_missing(monkeypatch):
+    def fake_load_missing(path):
+        raise FileNotFoundError("not found")
+
+    fake_module = ModuleType("willowlab.io")
+    monkeypatch.setitem(sys.modules, "willowlab.io", fake_module)
+    monkeypatch.setattr(fake_module, "load_willow", fake_load_missing, raising=False)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _load_default_datasets()
+
+    assert isinstance(excinfo.value.__cause__, FileNotFoundError)
+
+
+def test_load_default_datasets_corrupted(monkeypatch):
+    def fake_load_corrupted(path):
+        raise ValueError("bad data")
+
+    fake_module = ModuleType("willowlab.io")
+    monkeypatch.setitem(sys.modules, "willowlab.io", fake_module)
+    monkeypatch.setattr(fake_module, "load_willow", fake_load_corrupted, raising=False)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _load_default_datasets()
+
+    assert isinstance(excinfo.value.__cause__, ValueError)
