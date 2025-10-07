@@ -232,7 +232,7 @@ def _load_default_datasets() -> Dict[str, WillowDataset]:
         sept = load_willow("willow_sept_2025.npz")
         pooled = load_willow("willow_pooled_2025.npz")
         return {"sept_2025": sept, "sept_dec_2025": pooled}
-    except (ValueError, KeyError, OSError) as exc:  # pragma: no cover - depends on file integrity
+    except (ValueError, KeyError, FileNotFoundError, OSError) as exc:  # pragma: no cover - depends on file integrity
         raise RuntimeError(
             "Failed to load default Nobel validation datasets. "
             "Ensure willow_sept_2025.npz and willow_pooled_2025.npz are valid."
