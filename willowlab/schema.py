@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 try:  # pragma: no cover - exercised indirectly in environments with NumPy
@@ -45,7 +45,9 @@ class TheoremValidationResult:
     actual_results: Dict[str, Any]
     validated: bool
     failure_reason: Optional[str] = None
-    timestamp: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
 
 @dataclass
@@ -70,7 +72,7 @@ class NobelValidationSuite:
 
         return {
             "framework": "CCC/Mecha Operational Gravity",
-            "validation_date": datetime.utcnow().isoformat(),
+            "validation_date": datetime.now(timezone.utc).isoformat(),
             "theorems_tested": len(self.theorems_tested),
             "theorems_validated": sum(1 for r in self.results if r.validated),
             "critical_falsification_tests": [
