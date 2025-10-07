@@ -255,7 +255,7 @@ def test_nobel_validation(tmp_path, monkeypatch):
 
     synthetic = _synthetic_dataset()
     monkeypatch.setattr(
-        __name__ + "._load_default_datasets",
+        _load_default_datasets,
         lambda: {"sept_2025": synthetic, "sept_dec_2025": synthetic},
     )
 
