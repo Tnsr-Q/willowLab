@@ -221,6 +221,9 @@ def run_nobel_validation_cli(report_path: str = "nobel_validation_report.json"):
     except AssertionError as exc:
         print(f"❌ VALIDATION FAILED: {exc}")
         return
+    except (FileNotFoundError, RuntimeError) as exc:
+        print(f"❌ VALIDATION ABORTED: {exc}")
+        return
 
     print("✅ VALIDATION COMPLETE")
     print(f"Report saved: {pathlib.Path(report_path).resolve()}")

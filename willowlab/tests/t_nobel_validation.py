@@ -8,6 +8,9 @@ import math
 import sys
 from pathlib import Path
 from types import ModuleType
+from types import SimpleNamespace
+
+import pytest
 from typing import Dict, List
 
 import pytest
@@ -226,13 +229,19 @@ def _synthetic_dataset() -> WillowDataset:
 
 
 def _load_default_datasets() -> Dict[str, WillowDataset]:
-    try:
-        from willowlab.io import load_willow
+    from willowlab.io import load_willow
 
+    try:
         sept = load_willow("willow_sept_2025.npz")
         pooled = load_willow("willow_pooled_2025.npz")
         return {"sept_2025": sept, "sept_dec_2025": pooled}
     except (ValueError, KeyError, FileNotFoundError, OSError) as exc:  # pragma: no cover - depends on file integrity
+    except FileNotFoundError as exc:  # pragma: no cover - depends on filesystem
+        raise FileNotFoundError(
+            "Missing required Nobel validation dataset: "
+            "willow_sept_2025.npz"
+        ) from exc
+    except Exception as exc:  # pragma: no cover - depends on file integrity
         raise RuntimeError(
             "Failed to load default Nobel validation datasets. "
             "Ensure willow_sept_2025.npz and willow_pooled_2025.npz are valid."
@@ -241,8 +250,13 @@ def _load_default_datasets() -> Dict[str, WillowDataset]:
 
 def execute_nobel_validation(report_path: Path | str = "nobel_validation_report.json") -> Dict[str, object]:
     datasets = _load_default_datasets()
+def execute_nobel_validation(
+    report_path: Path | str = "nobel_validation_report.json",
+    datasets: Dict[str, WillowDataset] | None = None,
+) -> Dict[str, object]:
+    dataset_map = datasets if datasets is not None else _load_default_datasets()
     runner = NobelValidationRunner()
-    suite = runner.run_complete_validation(datasets)
+    suite = runner.run_complete_validation(dataset_map)
     report = suite.generate_nobel_report()
 
     path = Path(report_path)
@@ -260,7 +274,9 @@ def test_nobel_validation(tmp_path, monkeypatch):
     )
 
     report_path = tmp_path / "nobel_validation_report.json"
-    report = execute_nobel_validation(report_path)
+    synthetic = _synthetic_dataset()
+    datasets = {"sept_2025": synthetic, "sept_dec_2025": synthetic}
+    report = execute_nobel_validation(report_path, datasets=datasets)
 
     assert report["theorems_tested"] == 2
     assert report_path.exists()
@@ -292,3 +308,20 @@ def test_load_default_datasets_corrupted(monkeypatch):
         _load_default_datasets()
 
     assert isinstance(excinfo.value.__cause__, ValueError)
+    def fake_load(path):
+        raise FileNotFoundError("not found")
+
+    monkeypatch.setitem(sys.modules, "willowlab.io", SimpleNamespace(load_willow=fake_load))
+
+    with pytest.raises(FileNotFoundError):
+        _load_default_datasets()
+
+
+def test_load_default_datasets_corrupted(monkeypatch):
+    def fake_load(path):
+        raise ValueError("bad data")
+
+    monkeypatch.setitem(sys.modules, "willowlab.io", SimpleNamespace(load_willow=fake_load))
+
+    with pytest.raises(RuntimeError):
+        _load_default_datasets()
