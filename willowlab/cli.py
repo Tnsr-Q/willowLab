@@ -1,20 +1,29 @@
 import json
 import pathlib
 
-import numpy as np
-import yaml
+try:  # pragma: no cover - optional dependency
+    import numpy as np
+except ModuleNotFoundError:  # pragma: no cover - use shim for tests
+    from . import _numpy_shim as np  # type: ignore
 
-from .disorder import disorder_scan, optimal_disorder
-from .geometry import non_abelian_wilson_loop, residue_atlas
-from .io import load_willow
-from .resolvent import resolvent_scan, spectral_temperature, validate_theorem_b1
-from .spectral_flow import berry_phase_loop, chern_number, validate_theorem_b4
-from .tests.t_eta_lock import decoder_priors_from_crossings, eta_lock_windows
-from .tests.t_spec_ent import test_duality
-from .trinity import WillowTrinityStep1
+try:  # pragma: no cover - optional dependency
+    import yaml
+except ModuleNotFoundError:  # pragma: no cover - fallback when PyYAML absent
+    yaml = None  # type: ignore[assignment]
+
+def _load_config(config_path):
+    if yaml is None:
+        raise RuntimeError("PyYAML is required for this command")
+    return yaml.safe_load(open(config_path))
 
 def run(config_path):
-    cfg = yaml.safe_load(open(config_path))
+    from .geometry import residue_atlas
+    from .io import load_willow
+    from .tests.t_eta_lock import decoder_priors_from_crossings, eta_lock_windows
+    from .tests.t_spec_ent import test_duality
+    from .trinity import WillowTrinityStep1
+
+    cfg = _load_config(config_path)
     ds = load_willow(cfg["dataset"])
 
     # Step-1 invariants
@@ -43,6 +52,9 @@ def run(config_path):
 
 
 def run_resolvent(config_path):
+    from .io import load_willow
+    from .resolvent import resolvent_scan, spectral_temperature, validate_theorem_b1
+
     """
     Run resolvent witness analysis on Willow dataset.
 
@@ -52,7 +64,7 @@ def run_resolvent(config_path):
         window: analysis window (default 0.05)
         artifacts_dir: output directory
     """
-    cfg = yaml.safe_load(open(config_path))
+    cfg = _load_config(config_path)
     ds = load_willow(cfg["dataset"])
 
     if ds.floquet_eigenvalues is None:
@@ -97,6 +109,9 @@ def run_resolvent(config_path):
 
 
 def run_spectral_flow(config_path):
+    from .io import load_willow
+    from .spectral_flow import berry_phase_loop, chern_number, validate_theorem_b4
+
     """
     Run spectral flow topology analysis.
 
@@ -105,7 +120,7 @@ def run_spectral_flow(config_path):
         loop_mode: 'single' or 'nested' (for c₁₄)
         artifacts_dir: output directory
     """
-    cfg = yaml.safe_load(open(config_path))
+    cfg = _load_config(config_path)
     ds = load_willow(cfg["dataset"])
 
     if ds.floquet_eigenvectors is None:
@@ -144,6 +159,9 @@ def run_spectral_flow(config_path):
 
 
 def run_disorder(config_path):
+    from .disorder import disorder_scan, optimal_disorder
+    from .io import load_willow
+
     """
     Run disorder sharpening analysis.
 
@@ -153,7 +171,7 @@ def run_disorder(config_path):
         n_realizations: disorder realizations per delta (default 5)
         artifacts_dir: output directory
     """
-    cfg = yaml.safe_load(open(config_path))
+    cfg = _load_config(config_path)
     ds = load_willow(cfg["dataset"])
 
     if ds.floquet_eigenvalues is None:
@@ -190,24 +208,55 @@ def run_disorder(config_path):
     print(f"Optimal δ={optimal['optimal_delta']:.2f}, enhancement={optimal['enhancement_factor']:.2f}x")
 
 
+def run_nobel_validation_cli(report_path: str = "nobel_validation_report.json"):
+    """Run the consolidated Nobel validation workflow."""
+
+    from .tests.t_nobel_validation import execute_nobel_validation
+
+    print("🏆 RUNNING NOBEL-LEVEL VALIDATION SUITE")
+    print("This validates all critical falsification criteria...")
+
+    try:
+        report = execute_nobel_validation(report_path)
+    except AssertionError as exc:
+        print(f"❌ VALIDATION FAILED: {exc}")
+        return
+
+    print("✅ VALIDATION COMPLETE")
+    print(f"Report saved: {pathlib.Path(report_path).resolve()}")
+    if report.get("overall_conclusion") == "ALL CRITICAL THEOREMS VALIDATED":
+        print("🎉 READY FOR NOBEL SUBMISSION!")
+    else:
+        print("❌ FRAMEWORK FALSIFIED - REQUIRES REVISION")
+
+
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) < 3:
-        print("Usage: python -m willowlab.cli <command> <config.yaml>")
+    if len(sys.argv) < 2:
+        print("Usage: python -m willowlab.cli <command> [config.yaml]")
         sys.exit(1)
 
     command = sys.argv[1]
-    config_path = sys.argv[2]
+    requires_config = {"trinity", "resolvent", "spectral-flow", "disorder"}
 
-    if command == "trinity":
-        run(config_path)
-    elif command == "resolvent":
-        run_resolvent(config_path)
-    elif command == "spectral-flow":
-        run_spectral_flow(config_path)
-    elif command == "disorder":
-        run_disorder(config_path)
+    if command in requires_config:
+        if len(sys.argv) < 3:
+            print(f"Command '{command}' requires a configuration file")
+            sys.exit(1)
+        config_path = sys.argv[2]
+
+        if command == "trinity":
+            run(config_path)
+        elif command == "resolvent":
+            run_resolvent(config_path)
+        elif command == "spectral-flow":
+            run_spectral_flow(config_path)
+        elif command == "disorder":
+            run_disorder(config_path)
+    elif command == "nobel_validation":
+        report_path = sys.argv[2] if len(sys.argv) > 2 else "nobel_validation_report.json"
+        run_nobel_validation_cli(report_path)
     else:
         print(f"Unknown command: {command}")
         sys.exit(1)
