@@ -9,6 +9,8 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Sequence
 
+from .schema import WillowDataset
+
 try:  # pragma: no cover - optional dependency
     import numpy as np
     HAVE_NUMPY = True
@@ -84,7 +86,7 @@ class CosmicRatchetValidator:
     # Cumulative geometric noise bound (95% C.L.)
     OMEGA_THRESHOLD: float = 0.0179
 
-    def __init__(self, ds):
+    def __init__(self, ds: WillowDataset):
         self.ds = ds
         self.T = len(ds.JT_scan_points)
 

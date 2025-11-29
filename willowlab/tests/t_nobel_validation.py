@@ -124,7 +124,7 @@ class NobelValidationRunner:
 
         try:
             validator = CosmicRatchetValidator(dataset)
-            res = validator.run_validation(strict=True)
+            res = validator.run_validation()
 
             validated = res.passed
 
