@@ -113,20 +113,19 @@ class CosmicRatchetValidator:
         Calculates Operational Acceleration AP' per Registry CR-5.
         AP' = d²ξ/dJT² (normalized)
         """
-        ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
-
         if HAVE_NUMPY:
+            ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
             std_val = float(np.std(ap_prime))
             if std_val > 1e-12:
                 return ap_prime / std_val
             return ap_prime
-
-        series = list(ap_prime)
-        std_val = _std(series)
-        if std_val > 1e-12:
-            return [val / std_val for val in series]
-        return series
-
+        else:
+            ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
+            series = list(ap_prime)
+            std_val = _std(series)
+            if std_val > 1e-12:
+                return [val / std_val for val in series]
+            return series
     def _compute_omega_op(self) -> Any:
         """
         Calculates Protractor Noise Ω_op per Registry CR-4.
