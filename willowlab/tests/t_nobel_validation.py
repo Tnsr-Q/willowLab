@@ -114,7 +114,7 @@ class NobelValidationRunner:
                 failure_reason=f"Test execution failed: {exc}",
             )
 
-    def validate_theorem_spg_ratchet(self, dataset, dataset_label: str) -> TheoremValidationResult:
+    def validate_theorem_spg1(self, dataset, dataset_label: str) -> TheoremValidationResult:
         falsification_criteria: Dict[str, object] = {
             "omega_op_limit": 0.0179,
             "ap_prime_detection": "Must detect discrete contractions",
