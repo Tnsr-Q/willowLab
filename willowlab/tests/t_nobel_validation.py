@@ -125,11 +125,16 @@ class NobelValidationRunner:
 
             # For the Nobel suite, we might allow breaches IF they are caught by triggers
             # But strictly, the raw data shouldn't violate the bounds if the chip worked.
-            validated = res.crosstalk_breaches == 0
+            validated = res.crosstalk_breaches == 0 and res.critical_crossings >= 2
 
             failure_reason = None
             if not validated:
-                failure_reason = f"Noise floor breached limit {res.crosstalk_breaches} times."
+                reasons = []
+                if res.crosstalk_breaches > 0:
+                    reasons.append(f"Noise floor breached limit {res.crosstalk_breaches} times")
+                if res.critical_crossings < 2:
+                    reasons.append(f"Insufficient critical events ({res.critical_crossings} < 2)")
+                failure_reason = "; ".join(reasons)
 
             return TheoremValidationResult(
                 theorem_id="SPG.1",  # Stochastic Projective Gravity
