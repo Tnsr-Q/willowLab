@@ -208,6 +208,32 @@ def run_disorder(config_path):
     print(f"Optimal δ={optimal['optimal_delta']:.2f}, enhancement={optimal['enhancement_factor']:.2f}x")
 
 
+def run_spg(config_path):
+    from .io import load_willow
+    from .spg import validate_theorem_spg
+
+    cfg = _load_config(config_path)
+    ds = load_willow(cfg["dataset"])
+
+    print("🪐 RUNNING STOCHASTIC PROJECTIVE GRAVITY TEST")
+    print(f"   Target Omega_op Limit: 0.0179 (-17.5 dB)")
+
+    result = validate_theorem_spg(ds)
+
+    art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
+    art.mkdir(parents=True, exist_ok=True)
+
+    (art/"spg_results.json").write_text(json.dumps(result, indent=2))
+
+    print(f"   Max Crosstalk (Omega_op): {result.get('omega_max', 0):.4f}")
+    print(f"   Instanton Events (AP' < -1/3): {result.get('critical_instanton_events', 0)}")
+
+    if result.get("passed"):
+        print("✅ SPG VALIDATED: Geometry remains within habitable zone.")
+    else:
+        print("❌ SPG FAILED: Crosstalk breached Dark Energy threshold.")
+
+
 def run_nobel_validation_cli(report_path: str = "nobel_validation_report.json"):
     """Run the consolidated Nobel validation workflow."""
 
@@ -241,7 +267,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     command = sys.argv[1]
-    requires_config = {"trinity", "resolvent", "spectral-flow", "disorder"}
+    requires_config = {"trinity", "resolvent", "spectral-flow", "disorder", "spg"}
 
     if command in requires_config:
         if len(sys.argv) < 3:
@@ -257,6 +283,8 @@ if __name__ == "__main__":
             run_spectral_flow(config_path)
         elif command == "disorder":
             run_disorder(config_path)
+        elif command == "spg":
+            run_spg(config_path)
     elif command == "nobel_validation":
         report_path = sys.argv[2] if len(sys.argv) > 2 else "nobel_validation_report.json"
         run_nobel_validation_cli(report_path)
