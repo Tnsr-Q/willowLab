@@ -63,7 +63,10 @@ def _max_value(values: Iterable[float]) -> float:
 
 
 def _min_value(values: Iterable[float]) -> float:
-    return float(min(values)) if values else float("nan")
+    seq = list(values)
+    if not seq:
+        return float("nan")
+    return float(min(seq))
 
 
 def _mean_value(values: Iterable[float]) -> float:
