@@ -122,8 +122,6 @@ class NobelValidationRunner:
         }
 
         try:
-            validator = CosmicRatchetValidator(dataset)
-            res = validator.run_validation()
             res = run_cosmic_ratchet_test(dataset)
 
             # For the Nobel suite, we might allow breaches IF they are caught by triggers
