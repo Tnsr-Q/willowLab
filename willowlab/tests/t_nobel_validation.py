@@ -136,7 +136,7 @@ class NobelValidationRunner:
                 dataset_used=dataset_label,
                 falsification_criteria=falsification_criteria,
                 actual_results={
-                    "max_omega": float(res.omega_op_series.max()),
+                    "max_omega": float(max(res.omega_op_series)) if isinstance(res.omega_op_series, list) else float(res.omega_op_series.max()),
                     "events": res.critical_crossings,
                 },
                 validated=validated,
