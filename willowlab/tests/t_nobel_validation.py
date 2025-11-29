@@ -320,7 +320,7 @@ def test_nobel_validation(tmp_path):
     datasets = {"sept_2025": synthetic, "sept_dec_2025": synthetic}
     report = execute_nobel_validation(report_path, datasets=datasets)
 
-    assert report["theorems_tested"] == 3
+    assert len(report["theorems_tested"]) == 3
     assert report_path.exists()
 
 

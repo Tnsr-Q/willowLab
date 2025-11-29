@@ -73,7 +73,7 @@ class NobelValidationSuite:
         return {
             "framework": "CCC/Mecha Operational Gravity",
             "validation_date": datetime.now(timezone.utc).isoformat(),
-            "theorems_tested": len(self.theorems_tested),
+            "theorems_tested": self.theorems_tested,
             "theorems_validated": sum(1 for r in self.results if r.validated),
             "critical_falsification_tests": [
                 {
