@@ -240,7 +240,8 @@ def _load_config(config_path: str) -> Dict[str, Any]:
     except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
         raise RuntimeError("PyYAML is required for this command") from exc
 
-    return yaml.safe_load(open(config_path))
+    with open(config_path) as f:
+        return yaml.safe_load(f)
 
 
 def run_spg(config_path, mode: str = "validate"):
