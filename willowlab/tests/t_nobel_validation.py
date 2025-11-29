@@ -18,7 +18,7 @@ from willowlab.schema import (
     TheoremValidationResult,
     WillowDataset,
 )
-from willowlab.spg import CosmicRatchetValidator
+from willowlab.spg import run_cosmic_ratchet_test
 
 
 class NobelValidationRunner:
@@ -115,42 +115,37 @@ class NobelValidationRunner:
                 failure_reason=f"Test execution failed: {exc}",
             )
 
-    def validate_theorem_spg_ratchet(self, dataset, dataset_label: str) -> TheoremValidationResult:
+    def validate_theorem_spg1(self, dataset, dataset_label: str) -> TheoremValidationResult:
         falsification_criteria: Dict[str, object] = {
             "omega_op_limit": 0.0179,
-            "ap_prime_trigger": "Must detect >= 2 contraction events (AP' < -1/3)",
-            "safety_condition": "Zero crosstalk breaches allowed",
+            "ap_prime_detection": "Must detect discrete contractions",
         }
 
         try:
             validator = CosmicRatchetValidator(dataset)
             res = validator.run_validation()
+            res = run_cosmic_ratchet_test(dataset)
 
-            validated = res.passed
+            # For the Nobel suite, we might allow breaches IF they are caught by triggers
+            # But strictly, the raw data shouldn't violate the bounds if the chip worked.
+            validated = res.crosstalk_breaches == 0 and res.critical_crossings >= 2
 
             failure_reason = None
             if not validated:
+                reasons = []
                 if res.crosstalk_breaches > 0:
-                    failure_reason = (
-                        "SAFETY FAILURE: Noise floor breached limit "
-                        f"{res.crosstalk_breaches} times."
-                    )
-                elif res.critical_crossings < 2:
-                    failure_reason = (
-                        "LIVENESS FAILURE: Only "
-                        f"{res.critical_crossings} AP' events detected (dead chip)."
-                    )
-                else:
-                    failure_reason = "Unknown SPG failure."
+                    reasons.append(f"Noise floor breached limit {res.crosstalk_breaches} times")
+                if res.critical_crossings < 2:
+                    reasons.append(f"Insufficient critical events ({res.critical_crossings} < 2)")
+                failure_reason = "; ".join(reasons)
 
             return TheoremValidationResult(
                 theorem_id="SPG.1",  # Stochastic Projective Gravity
                 dataset_used=dataset_label,
                 falsification_criteria=falsification_criteria,
                 actual_results={
-                    "max_omega": float(np.max(res.omega_op_series)),
-                    "critical_events": res.critical_crossings,
-                    "breaches": res.crosstalk_breaches,
+                    "max_omega": float(max(res.omega_op_series)) if isinstance(res.omega_op_series, list) else float(res.omega_op_series.max()),
+                    "events": res.critical_crossings,
                 },
                 validated=validated,
                 failure_reason=failure_reason,
@@ -162,7 +157,7 @@ class NobelValidationRunner:
                 falsification_criteria=falsification_criteria,
                 actual_results={"error": str(exc)},
                 validated=False,
-                failure_reason=f"Execution Error: {str(exc)}",
+                failure_reason=str(exc),
             )
 
     def run_complete_validation(self, datasets: Dict[str, object]) -> NobelValidationSuite:

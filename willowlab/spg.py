@@ -236,8 +236,17 @@ def validate_theorem_spg(dataset) -> Dict[str, Any]:
 
 
 # CLI Hook (UPDATED)
-def run_spg_with_mode(config_path: str, mode: str = "validate"):
-    from .cli import _load_config
+def _load_config(config_path: str) -> Dict[str, Any]:
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError("PyYAML is required for this command") from exc
+
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
+
+def run_spg(config_path, mode: str = "validate"):
     from .io import load_willow
 
     cfg = _load_config(config_path)
