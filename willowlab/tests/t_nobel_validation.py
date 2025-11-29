@@ -17,7 +17,7 @@ from willowlab.schema import (
     TheoremValidationResult,
     WillowDataset,
 )
-from willowlab.spg import CosmicRatchetValidator, run_cosmic_ratchet_test
+from willowlab.spg import run_cosmic_ratchet_test
 
 
 class NobelValidationRunner:
