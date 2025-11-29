@@ -59,7 +59,10 @@ def _off_diag_norm(matrix: Sequence[Sequence[complex]]) -> float:
 
 
 def _max_value(values: Iterable[float]) -> float:
-    return float(max(values)) if values else float("nan")
+    seq = list(values)
+    if not seq:
+        return float("nan")
+    return float(max(seq))
 
 
 def _min_value(values: Iterable[float]) -> float:
