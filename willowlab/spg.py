@@ -177,7 +177,7 @@ class CosmicRatchetValidator:
             ),
         }
 
-    def run_validation(self, strict: bool = True) -> RatchetResult:
+    def run_validation(self) -> RatchetResult:
         """
         Phase 3: Validation Run.
         Executes strict checks against Registry Tier 1 thresholds.
