@@ -79,6 +79,13 @@ def _mean_value(values: Iterable[float]) -> float:
     return float(sum(seq) / len(seq))
 
 
+def _to_json_list(arr: Any) -> List[Any]:
+    """Convert array-like to a JSON-serializable list of native Python types."""
+    if hasattr(arr, "tolist"):
+        return arr.tolist()
+    return list(arr)
+
+
 class CosmicRatchetValidator:
     """Implements Tier 1 predictions CR-4 and CR-5 from the Registry."""
 
@@ -268,9 +275,9 @@ def run_spg_with_mode(config_path: str, mode: str = "validate"):
                     "critical_crossings": res.critical_crossings,
                     "crosstalk_breaches": res.crosstalk_breaches,
                     "passed": res.passed,
-                    "trigger_indices": list(res.trigger_indices),
-                    "ap_prime_series": list(res.ap_prime_series),
-                    "omega_op_series": list(res.omega_op_series),
+                    "trigger_indices": _to_json_list(res.trigger_indices),
+                    "ap_prime_series": _to_json_list(res.ap_prime_series),
+                    "omega_op_series": _to_json_list(res.omega_op_series),
                 },
                 indent=2,
             )
