@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 from typing import Dict, List
 
@@ -17,6 +18,7 @@ from willowlab.schema import (
     TheoremValidationResult,
     WillowDataset,
 )
+from willowlab.spg import CosmicRatchetValidator
 
 
 class NobelValidationRunner:
@@ -113,6 +115,56 @@ class NobelValidationRunner:
                 failure_reason=f"Test execution failed: {exc}",
             )
 
+    def validate_theorem_spg_ratchet(self, dataset, dataset_label: str) -> TheoremValidationResult:
+        falsification_criteria: Dict[str, object] = {
+            "omega_op_limit": 0.0179,
+            "ap_prime_trigger": "Must detect >= 2 contraction events (AP' < -1/3)",
+            "safety_condition": "Zero crosstalk breaches allowed",
+        }
+
+        try:
+            validator = CosmicRatchetValidator(dataset)
+            res = validator.run_validation()
+
+            validated = res.passed
+
+            failure_reason = None
+            if not validated:
+                if res.crosstalk_breaches > 0:
+                    failure_reason = (
+                        "SAFETY FAILURE: Noise floor breached limit "
+                        f"{res.crosstalk_breaches} times."
+                    )
+                elif res.critical_crossings < 2:
+                    failure_reason = (
+                        "LIVENESS FAILURE: Only "
+                        f"{res.critical_crossings} AP' events detected (dead chip)."
+                    )
+                else:
+                    failure_reason = "Unknown SPG failure."
+
+            return TheoremValidationResult(
+                theorem_id="SPG.1",  # Stochastic Projective Gravity
+                dataset_used=dataset_label,
+                falsification_criteria=falsification_criteria,
+                actual_results={
+                    "max_omega": float(np.max(res.omega_op_series)),
+                    "critical_events": res.critical_crossings,
+                    "breaches": res.crosstalk_breaches,
+                },
+                validated=validated,
+                failure_reason=failure_reason,
+            )
+        except Exception as exc:
+            return TheoremValidationResult(
+                theorem_id="SPG.1",
+                dataset_used=dataset_label,
+                falsification_criteria=falsification_criteria,
+                actual_results={"error": str(exc)},
+                validated=False,
+                failure_reason=f"Execution Error: {str(exc)}",
+            )
+
     def run_complete_validation(self, datasets: Dict[str, object]) -> NobelValidationSuite:
         print("🚀 STARTING NOBEL-LEVEL VALIDATION SUITE")
         print("=" * 60)
@@ -130,6 +182,13 @@ class NobelValidationRunner:
         b2_result = self.validate_theorem_b2(datasets["sept_2025"], "Willow_Sept_2025")
         print(f"   Result: {'PASS' if b2_result.validated else 'FAIL'}")
         results.append(b2_result)
+
+        print("🔬 Validating SPG.1 (Cosmic Ratchet)...")
+        spg_result = self.validate_theorem_spg_ratchet(
+            datasets["sept_dec_2025"], "Willow_Sept+Dec_2025"
+        )
+        print(f"   Result: {'PASS' if spg_result.validated else 'FAIL'}")
+        results.append(spg_result)
 
         self.suite.results.extend(results)
         self.suite.theorems_tested = [result.theorem_id for result in results]
@@ -206,10 +265,17 @@ def _linspace(start: float, stop: float, num: int) -> List[float]:
 def _synthetic_dataset() -> WillowDataset:
     jt = _linspace(0.5, 1.5, 40)
     evals = []
+    overlap_matrices = []
     for value in jt:
         angles = [2.0 * math.pi * k / 6 for k in range(6)]
         radii = 0.9 + 0.1 * math.exp(-20.0 * (value - 1.0) ** 2)
         evals.append([radii * cmath.exp(1j * angle) for angle in angles])
+        overlap_matrices.append(
+            [
+                [1.0 if i == j else 0.0 for j in range(6)]
+                for i in range(6)
+            ]
+        )
 
     trace_abs = [math.exp(0.02 * value ** 3 + 0.19 * value ** 2) for value in jt]
     entropy = [4 * 0.02 * value ** 3 + 2 * 0.19 * value ** 2 for value in jt]
@@ -219,6 +285,7 @@ def _synthetic_dataset() -> WillowDataset:
     return WillowDataset(
         JT_scan_points=jt,
         floquet_eigenvalues=evals,
+        overlap_matrices=overlap_matrices,
         resolvent_trace=resolvent_trace,
         entropy=entropy,
         effective_energy=energy,
@@ -266,7 +333,7 @@ def test_nobel_validation(tmp_path):
     datasets = {"sept_2025": synthetic, "sept_dec_2025": synthetic}
     report = execute_nobel_validation(report_path, datasets=datasets)
 
-    assert report["theorems_tested"] == 2
+    assert report["theorems_tested"] == 3
     assert report_path.exists()
 
 
