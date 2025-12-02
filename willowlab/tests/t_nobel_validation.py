@@ -81,6 +81,19 @@ class NobelValidationRunner:
             )
 
     def validate_theorem_b2(self, dataset, dataset_label: str) -> TheoremValidationResult:
+        """
+        Validate that all detected resolvent divergences in the given dataset coincide with exceptional points (Theorem B.2).
+        
+        Parameters:
+            dataset: WillowDataset-like object to inspect for resolvent divergences and exceptional point signatures.
+            dataset_label (str): Human-readable label for the dataset used in the returned result.
+        
+        Returns:
+            TheoremValidationResult: Result object with `validated` set to `true` if no divergences without EP signatures were found, `false` otherwise. The `actual_results` field contains:
+                - `divergences_found` (int): number of detected divergences without EP,
+                - `problematic_points` (list): details for each problematic JT point.
+            If an exception occurs during execution, `validated` is `false`, `actual_results` contains an `error` string, and `failure_reason` describes the execution failure.
+        """
         falsification_criteria: Dict[str, object] = {
             "requirement": "All divergences coincide with exceptional points",
             "tolerance": "Zero tolerance for divergence without EP",
@@ -116,6 +129,20 @@ class NobelValidationRunner:
             )
 
     def validate_theorem_spg_ratchet(self, dataset, dataset_label: str) -> TheoremValidationResult:
+        """
+        Validate the SPG.1 (Cosmic Ratchet) theorem for a given dataset.
+        
+        Runs the CosmicRatchetValidator on the provided dataset and produces a TheoremValidationResult summarizing whether the dataset satisfies the SPG.1 falsification criteria (operator rotation limit, AP' contraction event requirement, and zero crosstalk breaches). The returned result includes the falsification criteria tested, actual measured outcomes (maximum omega, number of critical AP' events, and crosstalk breach count), a boolean `validated` flag, and a `failure_reason` when validation fails. If an unexpected error occurs during validation, the result is marked not validated and contains the error message in `actual_results` and `failure_reason`.
+        
+        Returns:
+            TheoremValidationResult: Validation outcome for theorem "SPG.1" including:
+                - `theorem_id`: "SPG.1"
+                - `dataset_used`: the provided dataset_label
+                - `falsification_criteria`: dictionary of criteria applied
+                - `actual_results`: dict with keys `max_omega`, `critical_events`, `breaches` (or `error` on exception)
+                - `validated`: `true` if criteria met, `false` otherwise
+                - `failure_reason`: explanatory string when not validated
+        """
         falsification_criteria: Dict[str, object] = {
             "omega_op_limit": 0.0179,
             "ap_prime_trigger": "Must detect >= 2 contraction events (AP' < -1/3)",
@@ -166,6 +193,17 @@ class NobelValidationRunner:
             )
 
     def run_complete_validation(self, datasets: Dict[str, object]) -> NobelValidationSuite:
+        """
+        Run the full set of predefined theorem validations and assemble the aggregated NobelValidationSuite.
+        
+        Executes each theorem validator on the provided datasets, aggregates their TheoremValidationResult objects into the runner's NobelValidationSuite (including results, theorems_tested, datasets_used, and overall_status), prints a brief progress summary, and returns the populated suite.
+        
+        Parameters:
+            datasets (Dict[str, object]): Mapping of dataset keys to WillowDataset instances used by the validators (expected keys include "sept_2025" and "sept_dec_2025").
+        
+        Returns:
+            NobelValidationSuite: The runner's NobelValidationSuite updated with validation results, tested theorem identifiers, ordered datasets used, and the overall_status flag.
+        """
         print("🚀 STARTING NOBEL-LEVEL VALIDATION SUITE")
         print("=" * 60)
 
@@ -263,6 +301,20 @@ def _linspace(start: float, stop: float, num: int) -> List[float]:
 
 
 def _synthetic_dataset() -> WillowDataset:
+    """
+    Create a deterministic synthetic WillowDataset suitable for unit tests of the Nobel validation flow.
+    
+    The dataset contains a JT scan from 0.5 to 1.5 (40 points), six-fold symmetric complex Floquet eigenvalues per JT point, identity overlap matrices, a smoothly varying resolvent trace and derived entropy, and a simple quadratic effective energy curve.
+    
+    Returns:
+        WillowDataset: A dataset populated with the following fields:
+            - JT_scan_points: list of scan parameter values (0.5 to 1.5, 40 points).
+            - floquet_eigenvalues: list of length-6 complex eigenvalue arrays per JT point arranged on a ring with radius varying smoothly around 1.0.
+            - overlap_matrices: list of 6x6 identity-like overlap matrices (ones on diagonal, zeros off-diagonal).
+            - resolvent_trace: list of positive trace magnitudes derived from an exponential function of the JT parameter.
+            - entropy: list of values computed as a polynomial-derived proxy for entropy across JT.
+            - effective_energy: list of JT^2 values used as a simple energy proxy.
+    """
     jt = _linspace(0.5, 1.5, 40)
     evals = []
     overlap_matrices = []

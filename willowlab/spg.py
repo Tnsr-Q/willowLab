@@ -33,6 +33,15 @@ class RatchetResult:
 
 
 def _std(values: Sequence[float]) -> float:
+    """
+    Compute the population standard deviation of a sequence of floats.
+    
+    Parameters:
+    	values (Sequence[float]): Iterable of numeric values to measure.
+    
+    Returns:
+    	float: Population standard deviation (divides by N). Returns 0.0 for an empty input.
+    """
     seq = list(values)
     if not seq:
         return 0.0
@@ -41,6 +50,16 @@ def _std(values: Sequence[float]) -> float:
 
 
 def _off_diag_norm(matrix: Sequence[Sequence[complex]]) -> float:
+    """
+    Compute the off-diagonal Frobenius norm of a square matrix normalized by its size.
+    
+    Parameters:
+        matrix (Sequence[Sequence[complex]]): 2D sequence representing a square matrix.
+    
+    Returns:
+        float: The Frobenius norm of the matrix with diagonal entries removed, divided by the matrix dimension.
+               Returns 0.0 for an empty matrix.
+    """
     if HAVE_NUMPY:
         M = np.asarray(matrix)
         diag = np.diag(np.diag(M))
@@ -59,14 +78,41 @@ def _off_diag_norm(matrix: Sequence[Sequence[complex]]) -> float:
 
 
 def _max_value(values: Iterable[float]) -> float:
+    """
+    Return the maximum numeric value from an iterable, or NaN when the iterable is empty.
+    
+    Parameters:
+        values (Iterable[float]): Sequence of numeric values to inspect.
+    
+    Returns:
+        float: The largest value found in `values`, or NaN if `values` is empty.
+    """
     return float(max(values)) if values else float("nan")
 
 
 def _min_value(values: Iterable[float]) -> float:
+    """
+    Return the minimum value from an iterable.
+    
+    Parameters:
+        values (Iterable[float]): Sequence of numeric values to examine.
+    
+    Returns:
+        float: The smallest value in `values`, or `NaN` if `values` is empty.
+    """
     return float(min(values)) if values else float("nan")
 
 
 def _mean_value(values: Iterable[float]) -> float:
+    """
+    Compute the arithmetic mean of a sequence of floats.
+    
+    Parameters:
+    	values (Iterable[float]): Sequence of numeric values to average.
+    
+    Returns:
+    	mean (float): The arithmetic mean of the input values, or `NaN` if the input is empty.
+    """
     seq = list(values)
     if not seq:
         return float("nan")
@@ -85,15 +131,25 @@ class CosmicRatchetValidator:
     OMEGA_THRESHOLD: float = 0.0179
 
     def __init__(self, ds):
+        """
+        Initialize the validator with a dataset and precompute the number of JT scan points.
+        
+        Parameters:
+            ds: Dataset-like object containing simulation/measurement fields required by the validator.
+                Must provide a sequence attribute `JT_scan_points`; its length is stored as `self.T`.
+        """
         self.ds = ds
         self.T = len(ds.JT_scan_points)
 
     def _compute_xi(self) -> Any:
         """
-        Calculates Order Parameter ξ per Registry CR-5.
-        ξ(JT) = 1 - min|1 - λ_k(JT)|
-
-        Represents proximity to the decoherence threshold (Instability Tongue).
+        Compute the CR-5 order parameter ξ for each JT scan point.
+        
+        For each JT, ξ = 1 - min_k |1 - λ_k(JT)| where λ_k are the Floquet eigenvalues;
+        ξ quantifies proximity to the decoherence/instability threshold.
+        
+        Returns:
+            xi_series (sequence): Sequence of ξ values, one per JT scan point.
         """
         if self.ds.floquet_eigenvalues is None:
             raise ValueError("SPG requires Floquet Eigenvalues for CR-5 validation.")
@@ -107,8 +163,13 @@ class CosmicRatchetValidator:
 
     def _compute_ap_prime(self, xi: Any) -> Any:
         """
-        Calculates Operational Acceleration AP' per Registry CR-5.
-        AP' = d²ξ/dJT² (normalized)
+        Compute the normalized second derivative of the order parameter ξ with respect to JT_scan_points.
+        
+        Parameters:
+            xi (array-like): Sequence of ξ values sampled at the dataset's JT_scan_points.
+        
+        Returns:
+            ap_prime_series: Sequence of AP' values equal to d²ξ/d(JT)². If the standard deviation of the raw second-derivative series is greater than 1e-12, the series is normalized by that standard deviation; otherwise the unnormalized series is returned.
         """
         ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
 
@@ -126,9 +187,17 @@ class CosmicRatchetValidator:
 
     def _compute_omega_op(self) -> Any:
         """
-        Calculates Protractor Noise Ω_op per Registry CR-4.
-        Primary: Off-diagonal Frobenius norm of overlap matrices.
-        Fallback (CCC-4): Eigenvector Condition Number (EP signature).
+        Compute the Protractor Noise (Ω_op) series used for CR-4 validation.
+        
+        Primary method: compute the off-diagonal Frobenius norm of each overlap matrix.
+        Fallback method: compute a scaled log10 of the condition number of each Floquet eigenvector matrix when overlap matrices are missing.
+        
+        Returns:
+            omega_series (numpy.ndarray or list[float]): Sequence of Ω_op values for each JT scan point. If NumPy is available, a NumPy array is returned; otherwise a plain Python list of floats is returned.
+        
+        Raises:
+            ValueError: If both overlap_matrices and floquet_eigenvectors are missing.
+            ValueError: If the fallback (eigenvector condition number) is required but NumPy is not available.
         """
         if self.ds.overlap_matrices is not None:
             values = [_off_diag_norm(self.ds.overlap_matrices[t]) for t in range(self.T)]
@@ -150,8 +219,20 @@ class CosmicRatchetValidator:
 
     def run_calibration(self) -> Dict[str, Any]:
         """
-        Phase 2: Data Calibration.
-        Characterizes the data distribution without failing the test.
+        Produce calibration statistics summarizing the order parameter (ξ), AP' and Ω_op without applying validation thresholds.
+        
+        Computes ξ, the AP' series (second derivative of ξ normalized), and the Ω_op series (protractor noise) and returns summary statistics and a brief recommendation for scaling AP'. Uses NumPy when available; falls back to internal helpers otherwise.
+        
+        Returns:
+            dict: A calibration report with keys:
+                - mode (str): Always "CALIBRATION".
+                - stats (dict): Numeric summaries:
+                    - xi_mean (float): Mean of the ξ series.
+                    - xi_max (float): Maximum of the ξ series.
+                    - ap_prime_min (float): Minimum value of the AP' series.
+                    - ap_prime_std (float): Standard deviation of the AP' series.
+                    - omega_op_max (float): Maximum of the Ω_op series.
+                - recommendation (str): Textual suggestion about AP' scaling.
         """
         xi = self._compute_xi()
         ap_prime = self._compute_ap_prime(xi)
@@ -177,8 +258,28 @@ class CosmicRatchetValidator:
 
     def run_validation(self, strict: bool = True) -> RatchetResult:
         """
-        Phase 3: Validation Run.
-        Executes strict checks against Registry Tier 1 thresholds.
+        Run Tier 1 validation checks (CR-4 and CR-5) on the dataset and produce a RatchetResult.
+        
+        This computes the order parameter (ξ), its second-derivative series (AP'), and the protractor noise series (Ω_op), then evaluates them against the class thresholds:
+        - Acceleration trigger when AP' < AP_THRESHOLD.
+        - Crosstalk trigger when Ω_op > OMEGA_THRESHOLD.
+        
+        The final verdict marks the run as passed when there are at least two acceleration triggers and zero crosstalk breaches.
+        
+        Parameters:
+            strict (bool): Kept for compatibility with the public API; currently not used by the implementation.
+        
+        Returns:
+            RatchetResult: Contains:
+              - ap_prime_series: series of AP' values.
+              - omega_op_series: series of Ω_op values.
+              - xi_series: series of ξ values.
+              - trigger_indices: sorted indices where either threshold is triggered.
+              - critical_crossings: count of acceleration triggers.
+              - crosstalk_breaches: count of crosstalk triggers.
+              - passed: `true` if the run meets the pass criteria described above, `false` otherwise.
+              - mode: the string "VALIDATION".
+              - meta: dictionary with applied thresholds (`ap_threshold`, `omega_threshold`).
         """
         xi = self._compute_xi()
         ap_prime = self._compute_ap_prime(xi)
@@ -218,11 +319,33 @@ class CosmicRatchetValidator:
 
 
 def run_cosmic_ratchet_test(dataset) -> RatchetResult:
+    """
+    Run the Cosmic Ratchet Tier 1 validation using the provided dataset.
+    
+    Parameters:
+        dataset: Dataset object containing the required fields for SPG validation (e.g., JT_scan_points, floquet_eigenvalues and either overlap_matrices or floquet_eigenvectors).
+    
+    Returns:
+        RatchetResult: Structured validation outcome containing AP' series, Ω_op series, ξ series, trigger indices, counts of critical crossings and crosstalk breaches, overall pass flag, mode, and meta information.
+    """
     validator = CosmicRatchetValidator(dataset)
     return validator.run_validation()
 
 
 def validate_theorem_spg(dataset) -> Dict[str, Any]:
+    """
+    Run the SPG cosmic-ratchet validation on a dataset and return a compact summary of Tier 1 results.
+    
+    Parameters:
+        dataset: The dataset object to validate; must be compatible with the CosmicRatchetValidator input (contains JT scan points and Floquet data).
+    
+    Returns:
+        A dictionary with:
+            omega_max (float): Maximum observed protractor noise (Ω_op) across the scan.
+            critical_instanton_events (int): Number of acceleration-trigger events (AP' threshold crossings).
+            crosstalk_breaches (int): Number of protractor-noise breaches (Ω_op threshold crossings).
+            passed (bool): Whether the dataset passed Tier 1 (CR-4/CR-5) validation.
+    """
     result = run_cosmic_ratchet_test(dataset)
     omega_series = result.omega_op_series if HAVE_NUMPY else list(result.omega_op_series)
     return {
@@ -235,6 +358,23 @@ def validate_theorem_spg(dataset) -> Dict[str, Any]:
 
 # CLI Hook (UPDATED)
 def run_spg_with_mode(config_path: str, mode: str = "validate"):
+    """
+    Run the SPG workflow in either calibration or validation mode using a configuration file.
+    
+    Loads the configuration at config_path, builds the dataset, instantiates a CosmicRatchetValidator, and either
+    runs calibration (prints a JSON report) or runs validation (prints a summary, writes spg_results.json to an
+    artifacts directory, and prints a pass/fail message).
+    
+    Parameters:
+        config_path (str): Path to the configuration file used to locate the dataset and settings.
+        mode (str): Operation mode, either "calibrate" to run the calibration workflow or any other value
+            (default "validate") to run the validation workflow.
+    
+    Side effects:
+        - Prints progress and results to stdout.
+        - Creates the artifacts directory (cfg["artifacts_dir"] or ./artifacts) if missing.
+        - Writes artifacts/spg_results.json containing the validation results when running validation.
+    """
     from .cli import _load_config
     from .io import load_willow
 
@@ -257,7 +397,7 @@ def run_spg_with_mode(config_path: str, mode: str = "validate"):
 
         art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
         art.mkdir(parents=True, exist_ok=True)
-        (art/"spg_results.json").write_text(
+        (art / "spg_results.json").write_text(
             json.dumps(
                 {
                     "critical_crossings": res.critical_crossings,
