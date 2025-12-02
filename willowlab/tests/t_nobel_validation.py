@@ -176,7 +176,7 @@ class NobelValidationRunner:
         results.append(b2_result)
 
         print("🔬 Validating SPG.1 (Cosmic Ratchet)...")
-        spg_result = self.validate_theorem_spg_ratchet(
+        spg_result = self.validate_theorem_spg1(
             datasets["sept_dec_2025"], "Willow_Sept+Dec_2025"
         )
         print(f"   Result: {'PASS' if spg_result.validated else 'FAIL'}")
