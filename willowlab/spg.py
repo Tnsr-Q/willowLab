@@ -257,7 +257,7 @@ def run_spg_with_mode(config_path: str, mode: str = "validate"):
 
         art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
         art.mkdir(parents=True, exist_ok=True)
-        (art / "spg_results.json").write_text(
+        (art/"spg_results.json").write_text(
             json.dumps(
                 {
                     "critical_crossings": res.critical_crossings,
