@@ -256,7 +256,7 @@ class CosmicRatchetValidator:
             ),
         }
 
-    def run_validation(self, strict: bool = True) -> RatchetResult:
+    def run_validation(self) -> RatchetResult:
         """
         Run Tier 1 validation checks (CR-4 and CR-5) on the dataset and produce a RatchetResult.
         
