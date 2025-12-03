@@ -223,7 +223,7 @@ def run_spg(config_path):
     art = pathlib.Path(cfg.get("artifacts_dir", "./artifacts"))
     art.mkdir(parents=True, exist_ok=True)
 
-    (art/"spg_results.json").write_text(json.dumps(result, indent=2))
+    (art / "spg_results.json").write_text(json.dumps(result, indent=2))
 
     print(f"   Max Crosstalk (Omega_op): {result.get('omega_max', 0):.4f}")
     print(f"   Instanton Events (AP' < -1/3): {result.get('critical_instanton_events', 0)}")

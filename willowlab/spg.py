@@ -9,8 +9,6 @@ import pathlib
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Sequence
 
-from .schema import WillowDataset
-
 try:  # pragma: no cover - optional dependency
     import numpy as np
     HAVE_NUMPY = True
@@ -61,11 +59,17 @@ def _off_diag_norm(matrix: Sequence[Sequence[complex]]) -> float:
 
 
 def _max_value(values: Iterable[float]) -> float:
-    return float(max(values)) if values else float("nan")
+    seq = list(values)
+    if not seq:
+        return float("nan")
+    return float(max(seq))
 
 
 def _min_value(values: Iterable[float]) -> float:
-    return float(min(values)) if values else float("nan")
+    seq = list(values)
+    if not seq:
+        return float("nan")
+    return float(min(seq))
 
 
 def _mean_value(values: Iterable[float]) -> float:
@@ -73,6 +77,13 @@ def _mean_value(values: Iterable[float]) -> float:
     if not seq:
         return float("nan")
     return float(sum(seq) / len(seq))
+
+
+def _to_json_list(arr: Any) -> List[Any]:
+    """Convert array-like to a JSON-serializable list of native Python types."""
+    if hasattr(arr, "tolist"):
+        return arr.tolist()
+    return list(arr)
 
 
 class CosmicRatchetValidator:
@@ -86,7 +97,7 @@ class CosmicRatchetValidator:
     # Cumulative geometric noise bound (95% C.L.)
     OMEGA_THRESHOLD: float = 0.0179
 
-    def __init__(self, ds: WillowDataset):
+    def __init__(self, ds):
         self.ds = ds
         self.T = len(ds.JT_scan_points)
 
@@ -112,20 +123,19 @@ class CosmicRatchetValidator:
         Calculates Operational Acceleration AP' per Registry CR-5.
         AP' = d²ξ/dJT² (normalized)
         """
-        ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
-
         if HAVE_NUMPY:
+            ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
             std_val = float(np.std(ap_prime))
             if std_val > 1e-12:
                 return ap_prime / std_val
             return ap_prime
-
-        series = list(ap_prime)
-        std_val = _std(series)
-        if std_val > 1e-12:
-            return [val / std_val for val in series]
-        return series
-
+        else:
+            ap_prime = np.gradient(np.gradient(xi, self.ds.JT_scan_points), self.ds.JT_scan_points)
+            series = list(ap_prime)
+            std_val = _std(series)
+            if std_val > 1e-12:
+                return [val / std_val for val in series]
+            return series
     def _compute_omega_op(self) -> Any:
         """
         Calculates Protractor Noise Ω_op per Registry CR-4.
@@ -236,17 +246,8 @@ def validate_theorem_spg(dataset) -> Dict[str, Any]:
 
 
 # CLI Hook (UPDATED)
-def _load_config(config_path: str) -> Dict[str, Any]:
-    try:
-        import yaml
-    except ModuleNotFoundError as exc:  # pragma: no cover - optional dependency
-        raise RuntimeError("PyYAML is required for this command") from exc
-
-    with open(config_path) as f:
-        return yaml.safe_load(f)
-
-
-def run_spg(config_path, mode: str = "validate"):
+def run_spg_with_mode(config_path: str, mode: str = "validate"):
+    from .cli import _load_config
     from .io import load_willow
 
     cfg = _load_config(config_path)
@@ -274,9 +275,9 @@ def run_spg(config_path, mode: str = "validate"):
                     "critical_crossings": res.critical_crossings,
                     "crosstalk_breaches": res.crosstalk_breaches,
                     "passed": res.passed,
-                    "trigger_indices": list(res.trigger_indices),
-                    "ap_prime_series": list(res.ap_prime_series),
-                    "omega_op_series": list(res.omega_op_series),
+                    "trigger_indices": _to_json_list(res.trigger_indices),
+                    "ap_prime_series": _to_json_list(res.ap_prime_series),
+                    "omega_op_series": _to_json_list(res.omega_op_series),
                 },
                 indent=2,
             )
