@@ -159,6 +159,17 @@ def run_spectral_flow(config_path):
 
 
 def run_disorder(config_path):
+    """
+    Run disorder sharpening analysis.
+    
+    Load configuration, run a disorder-strength scan on the dataset's floquet eigenvalues, determine the optimal disorder and enhancement factor, and write results to artifacts_dir/disorder_results.json.
+    
+    Config keys:
+        dataset: path to .npz file
+        delta_values: list of disorder strengths (default [0.0, 0.05, 0.1, 0.15, 0.2])
+        n_realizations: number of disorder realizations per delta (default 5)
+        artifacts_dir: output directory (default "./artifacts")
+    """
     from .disorder import disorder_scan, optimal_disorder
     from .io import load_willow
 
@@ -209,6 +220,14 @@ def run_disorder(config_path):
 
 
 def run_spg(config_path):
+    """
+    Run the stochastic projective gravity (SPG) validation workflow for a Willow dataset.
+    
+    Loads configuration from the given YAML file, loads the referenced Willow dataset, executes the SPG validation, writes the validation result as JSON to the configured artifacts directory (defaults to ./artifacts), and prints a brief summary including Omega_op, instanton event count, and a pass/fail message.
+    
+    Parameters:
+        config_path (str): Path to the YAML configuration file containing at least a "dataset" entry and optional "artifacts_dir".
+    """
     from .io import load_willow
     from .spg import validate_theorem_spg
 
@@ -235,7 +254,14 @@ def run_spg(config_path):
 
 
 def run_nobel_validation_cli(report_path: str = "nobel_validation_report.json"):
-    """Run the consolidated Nobel validation workflow."""
+    """
+    Run the consolidated Nobel validation workflow.
+    
+    Execute the full Nobel validation suite, write a JSON report to the given path, and print progress and a final verdict. On validation failure or other errors the function prints an error message and returns early.
+    
+    Parameters:
+        report_path (str): Path to save the validation report (default: "nobel_validation_report.json").
+    """
 
     from .tests.t_nobel_validation import execute_nobel_validation
 
