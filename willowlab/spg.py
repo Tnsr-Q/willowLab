@@ -260,14 +260,11 @@ class CosmicRatchetValidator:
         """
         Run Tier 1 validation checks (CR-4 and CR-5) on the dataset and produce a RatchetResult.
         
-        This computes the order parameter (ξ), its second-derivative series (AP'), and the protractor noise series (Ω_op), then evaluates them against the class thresholds:
-        - Acceleration trigger when AP' < AP_THRESHOLD.
-        - Crosstalk trigger when Ω_op > OMEGA_THRESHOLD.
+        This computes the order parameter (ξ), its second-derivative series (AP'), and the protractor noise series (Ω_op), then evaluates them against the class constant thresholds:
+        - Acceleration trigger when AP' < AP_THRESHOLD (-0.333333).
+        - Crosstalk trigger when Ω_op > OMEGA_THRESHOLD (0.0179).
         
         The final verdict marks the run as passed when there are at least two acceleration triggers and zero crosstalk breaches.
-        
-        Parameters:
-            strict (bool): Kept for compatibility with the public API; currently not used by the implementation.
         
         Returns:
             RatchetResult: Contains:
