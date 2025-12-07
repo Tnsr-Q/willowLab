@@ -705,26 +705,33 @@ def validate_theorem_spg(ds) -> dict:
             "critical_crossings": res.critical_crossings,
             "total_crossings": res.total_crossings,
             "crossing_locations": [c.jt_value for c in res.crossings],
-            "cr5_passed": res.cr5_passed,
+            "cr5_passed": bool(res.cr5_passed),
             
             # CR-4 metrics  
             "omega_op_limit": OMEGA_OP_LIMIT,
             "omega_op_final": res.omega_op_final,
             "omega_op_max": res.omega_op_max,
-            "cr4_passed": res.cr4_passed,
+            "cr4_passed": bool(res.cr4_passed),
             
             # CCC-2 correlation
             "resolvent_correlation": res.resolvent_correlation,
-            "ccc2_correlated": res.ccc2_correlated,
+            "ccc2_correlated": bool(res.ccc2_correlated),
             
             # Overall (SPG only; 32-cell separate)
-            "spg_passed": res.overall_passed,
+            "spg_passed": bool(res.overall_passed),
             "failure_reasons": res.failure_reasons,
             
-            # 32-Cell metrics (from f32)
-            **{k: v for k, v in f32.items() if k != 'passed'},  # Exclude duplicate 'passed'
-            "overall_passed": res.overall_passed and f32.get('passed', False),  # Combined pass
-            "all_failure_reasons": res.failure_reasons + (f32.get('failure_reasons', []) if 'failure_reasons' in f32 else [f32.get('error', '')] if 'error' in f32 else [])
+            # 32-Cell metrics (from f32) - only include specific metrics, not all keys
+            "floquet32_test": f32.get('test', 'Floquet32Cell_Willow'),
+            "floquet32_passed": bool(f32.get('passed', False)),
+            "cell23_fraction": f32.get('cell23_fraction', 0.0),
+            "nu_f_avg": f32.get('nu_f_avg', 0.0),
+            "kappa_avg": f32.get('kappa_avg', 0.0),
+            "floquet32_error": f32.get('error', None),
+            
+            # Combined overall pass
+            "overall_passed": bool(res.overall_passed and f32.get('passed', False)),
+            "all_failure_reasons": res.failure_reasons + ([f32.get('error', '')] if 'error' in f32 else [])
         }
         
         return merged
