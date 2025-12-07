@@ -25,7 +25,6 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Tuple, List, Optional
 from scipy import signal
 from scipy.ndimage import gaussian_filter1d
-from scipy.linalg import eigh  # Added for Floquet32Cell eigenvalue decomposition
 
 
 # =============================================================================
@@ -477,8 +476,11 @@ def run_cosmic_ratchet_test(ds,
     failure_reasons = []
     
     # --- Extract JT scan values ---
-    if hasattr(ds, 'jt_scan') and ds.jt_scan is not None:
-        jt_scan = ds.jt_scan
+    # Support both jt_scan and JT_scan_points for compatibility
+    if hasattr(ds, 'JT_scan_points') and ds.JT_scan_points is not None:
+        jt_scan = np.asarray(ds.JT_scan_points)
+    elif hasattr(ds, 'jt_scan') and ds.jt_scan is not None:
+        jt_scan = np.asarray(ds.jt_scan)
     else:
         # Assume uniform scan from 0.8 to 1.2
         T = ds.floquet_operators.shape[0]
@@ -488,7 +490,10 @@ def run_cosmic_ratchet_test(ds,
     if ds.floquet_operators is None:
         raise ValueError("Dataset missing floquet_operators")
     
-    eigenvalues = extract_floquet_eigenvalues(ds.floquet_operators)
+    # Convert to numpy array if needed
+    floquet_operators = np.asarray(ds.floquet_operators)
+    
+    eigenvalues = extract_floquet_eigenvalues(floquet_operators)
     
     # --- Step 2: Compute ξ from eigenvalues (Registry CR-5) ---
     xi = compute_xi_from_eigenvalues(eigenvalues)
@@ -501,14 +506,15 @@ def run_cosmic_ratchet_test(ds,
     
     # --- Step 4: Compute Ω_op (Registry CR-4) ---
     if ds.overlap_matrices is not None:
-        omega_op = compute_omega_op(ds.overlap_matrices, cumulative=True)
+        overlap_matrices = np.asarray(ds.overlap_matrices)
+        omega_op = compute_omega_op(overlap_matrices, cumulative=True)
     else:
         # Fallback: estimate from eigenvalue spread
         omega_op = np.zeros(len(jt_scan))
         failure_reasons.append("Missing overlap_matrices, Ω_op estimated as zero")
     
     # --- Step 5: Compute resolvent for CCC-2 correlation ---
-    resolvent = compute_resolvent_trace(ds.floquet_operators)
+    resolvent = compute_resolvent_trace(floquet_operators)
     
     # --- Step 6: Detect AP' crossings ---
     crossings = detect_ap_crossings(ap_prime, jt_scan, xi, resolvent, ap_threshold)
@@ -581,7 +587,8 @@ class Floquet32Cell:
 
 def classify_floquet_32cell(U_T: np.ndarray, k_y: float = np.pi/4) -> List[Floquet32Cell]:
     """Classify U_T eigs to 32-cell, compute ν_F, κ from Hamanaka extension."""
-    eigs, evecs = eigh(U_T)  # Hermitian eigh for unitary Floquet
+    # Use eig for general complex matrices (not eigh which is for Hermitian)
+    eigs, evecs = np.linalg.eig(U_T)
     eps = np.angle(eigs) / (2 * np.pi)  # Quasienergy
     cells = []
     for i in range(U_T.shape[0]):
@@ -602,9 +609,12 @@ def classify_floquet_32cell(U_T: np.ndarray, k_y: float = np.pi/4) -> List[Floqu
         bits = f"{(o+1):01b}{(s+1):01b}{k_map[k]:02b}{b:01b}"
         # Floquet multipole contribution
         occ = np.abs(evecs[:, i])**2 if abs(eps[i]) < 0.1 else np.zeros(U_T.shape[0])
-        if occ.size > 0:
+        if occ.size > 0 and np.sum(occ) > 1e-12:
             Q = np.outer(occ, occ)  # Density matrix proxy
-            nu_contrib = np.real(np.trace(np.log(np.linalg.det(Q + 1e-12 * np.eye(Q.shape[0]))))) / (2 * np.pi)
+            # log(det(M)) = trace(log(M)) for positive definite M
+            # Use eigenvalues of Q for stability
+            Q_eigs = np.linalg.eigvalsh(Q + 1e-12 * np.eye(Q.shape[0]))
+            nu_contrib = np.real(np.sum(np.log(Q_eigs + 1e-12))) / (2 * np.pi)
         else:
             nu_contrib = 0.0
         kappa = 0.23 * np.abs(evecs[0, i])**2  # Skin from corner amp
@@ -616,11 +626,23 @@ def test_willow_floquet_32cell(ds: Any) -> Dict:
     """Test 32-cell on Willow Kitaev data (U_T matrices)."""
     try:
         # Handle WillowDataset or Dict
-        U_T_list = getattr(ds, 'U_T_list', getattr(ds, 'get', lambda x: None)('U_T_list', [])) or []
+        # Try to get U_T_list attribute, or fall back to floquet_operators
+        if hasattr(ds, 'U_T_list'):
+            U_T_list = ds.U_T_list or []
+        elif hasattr(ds, 'get') and callable(ds.get):
+            U_T_list = ds.get('U_T_list', [])
+        elif hasattr(ds, 'floquet_operators') and ds.floquet_operators is not None:
+            # Use floquet_operators as fallback for U_T (convert to numpy array)
+            floquet_ops = np.asarray(ds.floquet_operators)
+            U_T_list = [floquet_ops[i] for i in range(floquet_ops.shape[0])]
+        else:
+            U_T_list = []
         cells = []
         for ut in U_T_list:
             if hasattr(ut, 'full'):  # Sparse tensor fallback
                 ut = ut.full()
+            # Ensure it's a numpy array
+            ut = np.asarray(ut)
             cells.extend(classify_floquet_32cell(ut))
         
         if not cells:

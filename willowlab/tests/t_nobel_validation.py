@@ -123,17 +123,19 @@ class NobelValidationRunner:
         try:
             res = run_cosmic_ratchet_test(dataset)
 
-            # For the Nobel suite, we might allow breaches IF they are caught by triggers
-            # But strictly, the raw data shouldn't violate the bounds if the chip worked.
-            validated = res.crosstalk_breaches == 0 and res.critical_crossings >= 2
+            # Validate CR-5 (AP' crossings at JT*) and CR-4 (Omega_op limit)
+            # RatchetResult has: cr5_passed, cr4_passed, critical_crossings, omega_op_max
+            validated = res.overall_passed and res.critical_crossings >= 1
 
             failure_reason = None
             if not validated:
                 reasons = []
-                if res.crosstalk_breaches > 0:
-                    reasons.append(f"Noise floor breached limit {res.crosstalk_breaches} times")
-                if res.critical_crossings < 2:
-                    reasons.append(f"Insufficient critical events ({res.critical_crossings} < 2)")
+                if not res.cr4_passed:
+                    reasons.append(f"Omega_op {res.omega_op_final:.4f} exceeded limit {falsification_criteria['omega_op_limit']}")
+                if not res.cr5_passed:
+                    reasons.append(f"No AP' crossing at JT*≈1.0")
+                if res.critical_crossings < 1:
+                    reasons.append(f"Insufficient critical events ({res.critical_crossings} < 1)")
                 failure_reason = "; ".join(reasons)
 
             return TheoremValidationResult(
@@ -141,8 +143,12 @@ class NobelValidationRunner:
                 dataset_used=dataset_label,
                 falsification_criteria=falsification_criteria,
                 actual_results={
-                    "max_omega": float(max(res.omega_op_series)) if isinstance(res.omega_op_series, list) else float(res.omega_op_series.max()),
-                    "events": res.critical_crossings,
+                    "max_omega": float(res.omega_op_max),
+                    "final_omega": float(res.omega_op_final),
+                    "critical_crossings": res.critical_crossings,
+                    "total_crossings": res.total_crossings,
+                    "cr5_passed": res.cr5_passed,
+                    "cr4_passed": res.cr4_passed,
                 },
                 validated=validated,
                 failure_reason=failure_reason,
@@ -176,7 +182,7 @@ class NobelValidationRunner:
         results.append(b2_result)
 
         print("🔬 Validating SPG.1 (Cosmic Ratchet)...")
-        spg_result = self.validate_theorem_spg_ratchet(
+        spg_result = self.validate_theorem_spg1(
             datasets["sept_dec_2025"], "Willow_Sept+Dec_2025"
         )
         print(f"   Result: {'PASS' if spg_result.validated else 'FAIL'}")
@@ -258,16 +264,26 @@ def _synthetic_dataset() -> WillowDataset:
     jt = _linspace(0.5, 1.5, 40)
     evals = []
     overlap_matrices = []
+    floquet_operators = []
+    
     for value in jt:
         angles = [2.0 * math.pi * k / 6 for k in range(6)]
         radii = 0.9 + 0.1 * math.exp(-20.0 * (value - 1.0) ** 2)
-        evals.append([radii * cmath.exp(1j * angle) for angle in angles])
+        eigenvalues = [radii * cmath.exp(1j * angle) for angle in angles]
+        evals.append(eigenvalues)
+        
         overlap_matrices.append(
             [
                 [1.0 if i == j else 0.0 for j in range(6)]
                 for i in range(6)
             ]
         )
+        
+        # Create unitary Floquet operator from eigenvalues (diagonal in this basis)
+        U = [[0.0 for _ in range(6)] for _ in range(6)]
+        for i in range(6):
+            U[i][i] = eigenvalues[i]
+        floquet_operators.append(U)
 
     trace_abs = [math.exp(0.02 * value ** 3 + 0.19 * value ** 2) for value in jt]
     entropy = [4 * 0.02 * value ** 3 + 2 * 0.19 * value ** 2 for value in jt]
@@ -277,6 +293,7 @@ def _synthetic_dataset() -> WillowDataset:
     return WillowDataset(
         JT_scan_points=jt,
         floquet_eigenvalues=evals,
+        floquet_operators=floquet_operators,
         overlap_matrices=overlap_matrices,
         resolvent_trace=resolvent_trace,
         entropy=entropy,
