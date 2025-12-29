@@ -57,7 +57,7 @@ A production-grade falsification runner that tests your data against physical re
 
 The pipeline is designed for robustness—from "Zip to Truth."
 
-![WillowLab Data Flow](https://raw.githubusercontent.com/Tnsr-Q/willowLab/assets/data_flow_diagram.png)
+![WillowLab Data Flow](https://raw.githubusercontent.com/Tnsr-Q/willowLab/main/assets/data_flow_diagram.png)
 
 
 ### Directory Structure
